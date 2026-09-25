@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -14,15 +15,6 @@ import (
 )
 
 func (c *Client) Authenticate() error {
-	conf := &oauth2.Config{
-		ClientID: "4b398be9bd384de1a15948c9c9dd2d3a",
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  c.AccountsURL + "/authorize",
-			TokenURL: c.AccountsURL + "/api/token",
-		},
-		RedirectURL: "http://127.0.0.1:8000/callback",
-	}
-
 	verifier := oauth2.GenerateVerifier()
 	state := rand.Text()
 
@@ -60,14 +52,14 @@ func (c *Client) Authenticate() error {
 		}
 	}()
 
-	url := conf.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
-	fmt.Printf("Visit the URL for the auth dialog: %v\n", url)
+	url := c.OAuthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
+	fmt.Printf("Visit the URL for the auth dialog: %v\n\n", url)
 
 	var token *oauth2.Token
 	var err error
 	select {
 	case code := <-codeChan:
-		token, err = conf.Exchange(context.Background(), code, oauth2.VerifierOption(verifier))
+		token, err = c.OAuthConfig.Exchange(context.Background(), code, oauth2.VerifierOption(verifier))
 
 	case authErr := <-errChan:
 		return fmt.Errorf("authorization request failed: %s", authErr)
@@ -83,17 +75,72 @@ func (c *Client) Authenticate() error {
 		return fmt.Errorf("error during exchange: %s", err.Error())
 	}
 
-	err = keyring.Set("spotify-cli", "access_token", token.AccessToken)
+	err = setAccessTokenAndExpiry(token)
 	if err != nil {
-		return fmt.Errorf("error setting access token in keyring: %s", err.Error())
+		return err
 	}
-	err = keyring.Set("spotify-cli", "access_token_expiry", token.Expiry.String())
-	if err != nil {
-		return fmt.Errorf("error setting access token in keyring: %s", err.Error())
-	}
+
 	err = keyring.Set("spotify-cli", "refresh_token", token.RefreshToken)
 	if err != nil {
+		return fmt.Errorf("error setting refresh token in keyring: %s", err.Error())
+	}
+
+	return nil
+}
+
+func (c *Client) getAccessToken() (string, error) {
+	accessToken, err := keyring.Get("spotify-cli", "access_token")
+	if err != nil {
+		return "", fmt.Errorf("failed to get access token from keyring: %s", err.Error())
+	}
+
+	expiry, err := keyring.Get("spotify-cli", "access_token_expiry")
+	if err != nil {
+		return "", fmt.Errorf("failed to get token expiry from keyring: %s", err.Error())
+	}
+
+	refreshToken, err := keyring.Get("spotify-cli", "refresh_token")
+	if err != nil {
+		return "", fmt.Errorf("failed to get access token in keyring: %s", err.Error())
+	}
+
+	cleanStr := strings.Split(expiry, " m=")[0]
+	layout := "2006-01-02 15:04:05.000000 -0700 MST"
+
+	t, err := time.Parse(layout, cleanStr)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse token expiry: %s", err.Error())
+	}
+
+	if !t.After(time.Now()) {
+		tokenSource := c.OAuthConfig.TokenSource(context.Background(), &oauth2.Token{
+			RefreshToken: refreshToken,
+		})
+
+		token, err := tokenSource.Token()
+		if err != nil {
+			return "", fmt.Errorf("failed to refresh token: %s", err.Error())
+		}
+
+		err = setAccessTokenAndExpiry(token)
+		if err != nil {
+			return "", err
+		}
+		accessToken = token.AccessToken
+	}
+
+	return accessToken, nil
+}
+
+func setAccessTokenAndExpiry(token *oauth2.Token) error {
+	err := keyring.Set("spotify-cli", "access_token", token.AccessToken)
+	if err != nil {
 		return fmt.Errorf("error setting access token in keyring: %s", err.Error())
+	}
+
+	err = keyring.Set("spotify-cli", "access_token_expiry", token.Expiry.String())
+	if err != nil {
+		return fmt.Errorf("error setting access token expiry token in keyring: %s", err.Error())
 	}
 
 	return nil
