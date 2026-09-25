@@ -43,7 +43,7 @@ func (c *Client) Authenticate() error {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		html := `<!DOCTYPE html>
 		<html>
-		<head><title>Go HTML</title></head>
+		<head><title>Callback Received</title></head>
 		<body>
 			<h2>Callback received, you may now close this window.</h2>
 		</body>
