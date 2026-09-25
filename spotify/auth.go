@@ -39,6 +39,17 @@ func (c *Client) Authenticate() error {
 		} else {
 			errChan <- err
 		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		html := `<!DOCTYPE html>
+		<html>
+		<head><title>Go HTML</title></head>
+		<body>
+			<h2>Callback received, you may now close this window.</h2>
+		</body>
+		</html>`
+		
+		fmt.Fprint(w, html)
 	})
 
 	server := &http.Server{
