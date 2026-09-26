@@ -40,17 +40,17 @@ func New() *Client {
 	}
 }
 
-func (c *Client) Call(method, endpoint string, body any) ([]byte, error) {
+func (c *Client) Call(method, endpoint string, body, respStruct any) error {
 	token, err := c.getAccessToken()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var bodyReader io.Reader
 	if body != nil {
 		bodyJSON, err := json.Marshal(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		bodyReader = bytes.NewReader(bodyJSON)
 	}
@@ -59,20 +59,25 @@ func (c *Client) Call(method, endpoint string, body any) ([]byte, error) {
 
 	req, err := http.NewRequest(method, c.BaseURL+endpoint, bodyReader)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return respBody, nil
+	err = json.Unmarshal(respBody, respStruct)
+	if err != nil {
+		return fmt.Errorf("%s", "error unmarshaling response: " + err.Error())
+	}
+
+	return nil
 }
