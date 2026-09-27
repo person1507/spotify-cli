@@ -92,11 +92,6 @@ func getUserTopItems(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// bj, err := json.MarshalIndent(topItems, "", "    ")
-	// if err != nil {
-	// 	fmt.Println("error formatting struct: " + err.Error())
-	// }
-
 	if entity == "artists" {
 		itemsJSON, _ := json.Marshal(topItems.Items)
 		var artists []Artist
@@ -130,5 +125,57 @@ func getUserTopItems(cmd *cobra.Command, args []string) {
 			}
 			fmt.Println(track.Name + " - " + artistList.String())
 		}
+	}
+}
+
+var followedArtistsCmd = &cobra.Command{
+	Use:   "followed-artists",
+	Short: "Get the user's list of followed artists",
+	Long:  "Get the user's list of followed artists",
+	Run:   getFollowedArtists,
+}
+
+type FollowedArtistResponse struct {
+	Artists struct {
+		Href    string  `json:"href"`
+		Limit   int64   `json:"limit"`
+		Next    *string `json:"next"`
+		Cursors struct {
+			Before string `json:"before"`
+			After  string `json:"after"`
+		} `json:"cursors"`
+		Total int64    `json:"total"`
+		Items []Artist `json:"items"`
+	} `json:"artists"`
+}
+
+func getFollowedArtists(cmd *cobra.Command, args []string) {
+	queryParams := map[string]string{
+		"type": "artist",
+		"limit": "2",
+	}
+
+	var followedArtists FollowedArtistResponse
+	err := spotifyClient.Call("GET", "/me/following", nil, &followedArtists, queryParams)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	var artists []Artist
+	artists = append(artists, followedArtists.Artists.Items...)
+	for followedArtists.Artists.Next != nil {
+		queryParams["after"] = followedArtists.Artists.Cursors.After
+		err := spotifyClient.Call("GET", "/me/following", nil, &followedArtists, queryParams)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+		artists = append(artists, followedArtists.Artists.Items...)
+	}
+
+	fmt.Printf("Your followed artists (count %d):\n", followedArtists.Artists.Total)
+	for _, artist := range artists {
+		fmt.Println(artist.Name)
 	}
 }
