@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -17,9 +16,7 @@ var loginCmd = &cobra.Command{
 func login(cmd *cobra.Command, args []string) {
 	err := spotifyClient.Authenticate()
 	if err != nil {
-		fmt.Printf("Error authenticating to Spotify: %s\n", err.Error())
-		os.Exit(1)
-	} else {
-		fmt.Println("Success!")
+		printFatal(fmt.Sprintf("error authenticating to Spotify: %s\n", err.Error()))
 	}
+	fmt.Println("Success!")
 }

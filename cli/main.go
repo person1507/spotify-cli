@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/fatih/color"
 	"github.com/person1507/spotify-cli/spotify"
 	"github.com/spf13/cobra"
 )
@@ -18,6 +19,12 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(loginCmd, userInfoCmd, topItemsCmd, followedArtistsCmd)
+}
+
+func printFatal(err string) {
+	boldRed := color.New(color.FgRed, color.Bold)
+	boldRed.Println(err)
+	os.Exit(1)
 }
 
 func Main() {

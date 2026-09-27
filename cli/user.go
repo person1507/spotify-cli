@@ -40,8 +40,7 @@ func getUserInfo(cmd *cobra.Command, args []string) {
 	var profile UserProfile
 	err := spotifyClient.Call("GET", "/me", nil, &profile, nil)
 	if err != nil {
-		fmt.Println("Error: " + err.Error())
-		os.Exit(1)
+		printFatal("Error: " + err.Error())
 	}
 
 	fmt.Println("Name: " + profile.DisplayName)
@@ -72,7 +71,7 @@ type topItemsResponse struct {
 func getUserTopItems(cmd *cobra.Command, args []string) {
 	entity := args[0]
 	if entity != "artists" && entity != "songs" {
-		fmt.Println("error: argument must be either 'artists' or 'songs'")
+		printFatal("error: argument must be either 'artists' or 'songs'")
 		os.Exit(1)
 	}
 	if entity == "songs" {
@@ -88,8 +87,7 @@ func getUserTopItems(cmd *cobra.Command, args []string) {
 	var topItems topItemsResponse
 	err := spotifyClient.Call("GET", "/me/top/"+entity, nil, &topItems, queryParams)
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		printFatal(err.Error())
 	}
 
 	if entity == "artists" {
@@ -97,8 +95,7 @@ func getUserTopItems(cmd *cobra.Command, args []string) {
 		var artists []Artist
 		err := json.Unmarshal(itemsJSON, &artists)
 		if err != nil {
-			fmt.Println("error: type of items returned is not artists: " + err.Error())
-			os.Exit(1)
+			printFatal("error: type of items returned is not artists: " + err.Error())
 		}
 		fmt.Println("Your Top 10 Artists:")
 		for _, artist := range artists {
@@ -109,8 +106,7 @@ func getUserTopItems(cmd *cobra.Command, args []string) {
 		var tracks []Track
 		err := json.Unmarshal(itemsJSON, &tracks)
 		if err != nil {
-			fmt.Println("error: type of items returned is not tracks: " + err.Error())
-			os.Exit(1)
+			printFatal("error: type of items returned is not tracks: " + err.Error())
 		}
 		fmt.Println("Your top 10 songs:")
 		for _, track := range tracks {
@@ -152,14 +148,12 @@ type FollowedArtistResponse struct {
 func getFollowedArtists(cmd *cobra.Command, args []string) {
 	queryParams := map[string]string{
 		"type": "artist",
-		"limit": "2",
 	}
 
 	var followedArtists FollowedArtistResponse
 	err := spotifyClient.Call("GET", "/me/following", nil, &followedArtists, queryParams)
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		printFatal(err.Error())
 	}
 
 	var artists []Artist
@@ -168,8 +162,7 @@ func getFollowedArtists(cmd *cobra.Command, args []string) {
 		queryParams["after"] = followedArtists.Artists.Cursors.After
 		err := spotifyClient.Call("GET", "/me/following", nil, &followedArtists, queryParams)
 		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
+			printFatal(err.Error())
 		}
 		artists = append(artists, followedArtists.Artists.Items...)
 	}
