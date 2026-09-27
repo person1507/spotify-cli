@@ -15,13 +15,16 @@ import (
 )
 
 func (c *Client) Authenticate() error {
+	// since we can't safely store the client secret in this code, we must use OAuth with PKCE
+	// TODO: allow user to set client ID and client secret so they can use their own dev account
 	verifier := oauth2.GenerateVerifier()
-	state := rand.Text()
+	state := rand.Text() // must be encrypted random string
 
 	codeChan := make(chan string, 1)
 	errChan := make(chan string, 1)
 	mux := http.NewServeMux()
 
+	// create a temporary server so we have a page the OAuth callback can use
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		code := r.URL.Query().Get("code")
 		err := r.URL.Query().Get("error")
@@ -63,6 +66,7 @@ func (c *Client) Authenticate() error {
 		}
 	}()
 
+	// TODO: open page automatically?
 	url := c.OAuthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
 	fmt.Printf("Visit the URL for the auth dialog: %v\n\n", url)
 
@@ -70,12 +74,15 @@ func (c *Client) Authenticate() error {
 	var err error
 	select {
 	case code := <-codeChan:
+		// if code was successfully grabbed, exchange it for an access token
 		token, err = c.OAuthConfig.Exchange(context.Background(), code, oauth2.VerifierOption(verifier))
 
 	case authErr := <-errChan:
+		// we got an error
 		return fmt.Errorf("authorization request failed: %s", authErr)
 
 	case <-time.After(2 * time.Minute):
+		// time out after 2 minutes
 		server.Shutdown(context.Background())
 		return fmt.Errorf("timed out waiting for Spotify authorization")
 	}
@@ -86,6 +93,10 @@ func (c *Client) Authenticate() error {
 		return fmt.Errorf("error during exchange: %s", err.Error())
 	}
 
+	// store access token, access token expiry, and refresh token in OS's keyring
+	// Mac: Keychain
+	// Windows: Credential Manager
+	// Linux: Provided keyring service
 	err = setAccessTokenAndExpiry(token)
 	if err != nil {
 		return err
@@ -100,6 +111,7 @@ func (c *Client) Authenticate() error {
 }
 
 func (c *Client) getAccessToken() (string, error) {
+	// retrieve access token, access token expiry, and refresh token from keyring
 	accessToken, err := keyring.Get("spotify-cli", "access_token")
 	if err != nil {
 		return "", fmt.Errorf("failed to get access token from keyring: %s", err.Error())
@@ -115,6 +127,7 @@ func (c *Client) getAccessToken() (string, error) {
 		return "", fmt.Errorf("failed to get access token in keyring: %s", err.Error())
 	}
 
+	// token.Expiry.String() adds atomic time so we need to remove it in order to parse the timestamp
 	cleanStr := strings.Split(expiry, " m=")[0]
 	layout := "2006-01-02 15:04:05.000000 -0700 MST"
 
@@ -123,6 +136,7 @@ func (c *Client) getAccessToken() (string, error) {
 		return "", fmt.Errorf("failed to parse token expiry: %s", err.Error())
 	}
 
+	// if the expiry is now or has already happened, refresh the token
 	if !t.After(time.Now()) {
 		tokenSource := c.OAuthConfig.TokenSource(context.Background(), &oauth2.Token{
 			RefreshToken: refreshToken,
@@ -139,6 +153,8 @@ func (c *Client) getAccessToken() (string, error) {
 		}
 		accessToken = token.AccessToken
 	}
+
+	// TODO: get new refresh token when it expires
 
 	return accessToken, nil
 }

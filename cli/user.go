@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -69,18 +68,18 @@ type topItemsResponse struct {
 }
 
 func getUserTopItems(cmd *cobra.Command, args []string) {
+	// Spotify API can only retrieve a user's top artists or songs
 	entity := args[0]
 	if entity != "artists" && entity != "songs" {
 		printFatal("error: argument must be either 'artists' or 'songs'")
-		os.Exit(1)
 	}
 	if entity == "songs" {
-		entity = "tracks"
+		entity = "tracks" // Spotify API calls songs "tracks"
 	}
 
 	queryParams := map[string]string{
-		"time_range": "short_term",
-		"limit":      "10",
+		"time_range": "short_term", // last 4 weeks
+		"limit":      "10", // limit to 10 for now
 		"offset":     "0",
 	}
 
@@ -90,6 +89,7 @@ func getUserTopItems(cmd *cobra.Command, args []string) {
 		printFatal(err.Error())
 	}
 
+	// topItemsResponse.Items can be either a list of artists or tracks
 	if entity == "artists" {
 		itemsJSON, _ := json.Marshal(topItems.Items)
 		var artists []Artist
@@ -148,6 +148,7 @@ type FollowedArtistResponse struct {
 func getFollowedArtists(cmd *cobra.Command, args []string) {
 	queryParams := map[string]string{
 		"type": "artist",
+		"limit": "50",
 	}
 
 	var followedArtists FollowedArtistResponse
@@ -158,6 +159,8 @@ func getFollowedArtists(cmd *cobra.Command, args []string) {
 
 	var artists []Artist
 	artists = append(artists, followedArtists.Artists.Items...)
+
+	// response is paginated, so if user is following more than 50 artists, we must call API until we get through all of them
 	for followedArtists.Artists.Next != nil {
 		queryParams["after"] = followedArtists.Artists.Cursors.After
 		err := spotifyClient.Call("GET", "/me/following", nil, &followedArtists, queryParams)
