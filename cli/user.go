@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -24,11 +25,9 @@ type UserProfile struct {
 		FilterEnabled bool `json:"filter_enabled"`
 		FilterLocked  bool `json:"filter_locked"`
 	} `json:"explicit_content"`
-	ExternalURLs struct {
-		Spotify string `json:"spotify"`
-	} `json:"external_urls"`
-	Followers struct {
-		Total int `json:"total"`
+	ExternalURLs ExternalURL `json:"external_urls"`
+	Followers    struct {
+		Total int64 `json:"total"`
 	} `json:"followers"`
 	Href    string `json:"href"`
 	ID      string `json:"id"`
@@ -38,16 +37,10 @@ type UserProfile struct {
 }
 
 func getUserInfo(cmd *cobra.Command, args []string) {
-	resp, err := spotifyClient.Call("GET", "/me", nil)
+	var profile UserProfile
+	err := spotifyClient.Call("GET", "/me", nil, &profile, nil)
 	if err != nil {
 		fmt.Println("Error: " + err.Error())
-	}
-
-	var profile UserProfile
-	err = json.Unmarshal(resp, &profile)
-	if err != nil {
-		fmt.Println("error unmarshaling response: " + err.Error())
-		fmt.Println("Raw body response:\n" + string(resp))
 		os.Exit(1)
 	}
 
@@ -55,5 +48,87 @@ func getUserInfo(cmd *cobra.Command, args []string) {
 	fmt.Println("Username: " + profile.ID)
 	fmt.Println("Email: " + profile.Email)
 	fmt.Println("Tier: " + profile.Product)
-	fmt.Printf("Followers: %d", profile.Followers.Total)
+	fmt.Printf("Followers: %d\n", profile.Followers.Total)
+}
+
+var topItemsCmd = &cobra.Command{
+	Use:   "top-items [artists|songs]",
+	Short: "Get user's top items",
+	Long:  "Get user's top artists and songs",
+	Args:  cobra.ExactArgs(1),
+	Run:   getUserTopItems,
+}
+
+type topItemsResponse struct {
+	Href     string  `json:"href"`
+	Limit    int64   `json:"limit"`
+	Next     *string `json:"next"`
+	Offset   int64   `json:"offset"`
+	Previous *string `json:"previous"`
+	Total    int64   `json:"total"`
+	Items    any     `json:"items"`
+}
+
+func getUserTopItems(cmd *cobra.Command, args []string) {
+	entity := args[0]
+	if entity != "artists" && entity != "songs" {
+		fmt.Println("error: argument must be either 'artists' or 'songs'")
+		os.Exit(1)
+	}
+	if entity == "songs" {
+		entity = "tracks"
+	}
+
+	queryParams := map[string]string{
+		"time_range": "short_term",
+		"limit":      "10",
+		"offset":     "0",
+	}
+
+	var topItems topItemsResponse
+	err := spotifyClient.Call("GET", "/me/top/"+entity, nil, &topItems, queryParams)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	// bj, err := json.MarshalIndent(topItems, "", "    ")
+	// if err != nil {
+	// 	fmt.Println("error formatting struct: " + err.Error())
+	// }
+
+	if entity == "artists" {
+		itemsJSON, _ := json.Marshal(topItems.Items)
+		var artists []Artist
+		err := json.Unmarshal(itemsJSON, &artists)
+		if err != nil {
+			fmt.Println("error: type of items returned is not artists: " + err.Error())
+			os.Exit(1)
+		}
+		fmt.Println("Your Top 10 Artists:")
+		for _, artist := range artists {
+			fmt.Println(artist.Name)
+		}
+	} else {
+		itemsJSON, _ := json.Marshal(topItems.Items)
+		var tracks []Track
+		err := json.Unmarshal(itemsJSON, &tracks)
+		if err != nil {
+			fmt.Println("error: type of items returned is not tracks: " + err.Error())
+			os.Exit(1)
+		}
+		fmt.Println("Your top 10 songs:")
+		for _, track := range tracks {
+			var artistList strings.Builder
+			for i, artist := range track.Artists {
+				if i == 0 {
+					artistList.WriteString(artist.Name)
+				} else {
+					artistList.WriteString(", ")
+					artistList.WriteString(artist.Name)
+				}
+			}
+			fmt.Println(track.Name + " - " + artistList.String())
+		}
+	}
 }

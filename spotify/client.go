@@ -30,6 +30,8 @@ func New() *Client {
 		Scopes: []string{
 			"user-read-private",
 			"user-read-email",
+			"user-top-read",
+			"user-follow-read",
 		},
 	}
 
@@ -40,7 +42,7 @@ func New() *Client {
 	}
 }
 
-func (c *Client) Call(method, endpoint string, body, respStruct any) error {
+func (c *Client) Call(method, endpoint string, body, respStruct any, queryParams map[string]string) error {
 	token, err := c.getAccessToken()
 	if err != nil {
 		return err
@@ -63,6 +65,12 @@ func (c *Client) Call(method, endpoint string, body, respStruct any) error {
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 
+	q := req.URL.Query()
+	for k, v := range queryParams {
+		q.Add(k, v)
+	}
+	req.URL.RawQuery = q.Encode()
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -76,7 +84,7 @@ func (c *Client) Call(method, endpoint string, body, respStruct any) error {
 
 	err = json.Unmarshal(respBody, respStruct)
 	if err != nil {
-		return fmt.Errorf("%s", "error unmarshaling response: " + err.Error())
+		return fmt.Errorf("%s", "error unmarshaling response: "+err.Error())
 	}
 
 	return nil

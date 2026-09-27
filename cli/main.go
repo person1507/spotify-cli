@@ -17,7 +17,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(loginCmd, userInfoCmd)
+	rootCmd.AddCommand(loginCmd, userInfoCmd, topItemsCmd)
 }
 
 func Main() {
