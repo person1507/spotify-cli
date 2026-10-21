@@ -52,12 +52,16 @@ func (c *Client) Authenticate() error {
 		</body>
 		</html>`
 		
-		fmt.Fprint(w, html)
+		_, htmlErr := fmt.Fprint(w, html)
+		if htmlErr != nil {
+			log.Printf("Error rendering HTML on callback page: %s\n", htmlErr.Error())
+		}
 	})
 
 	server := &http.Server{
 		Addr:    "127.0.0.1:8000",
 		Handler: mux,
+		ReadHeaderTimeout: 3 * time.Second,
 	}
 
 	go func() {
@@ -83,11 +87,15 @@ func (c *Client) Authenticate() error {
 
 	case <-time.After(2 * time.Minute):
 		// time out after 2 minutes
-		server.Shutdown(context.Background())
+		if shutdownErr := server.Shutdown(context.Background()); shutdownErr != nil {
+			log.Printf("Error shutting down HTTP server for callback: %s", shutdownErr.Error())
+		}
 		return fmt.Errorf("timed out waiting for Spotify authorization")
 	}
 
-	server.Shutdown(context.Background())
+	if shutdownErr := server.Shutdown(context.Background()); shutdownErr != nil {
+		log.Printf("Error shutting down HTTP server for callback: %s", shutdownErr.Error())
+	}
 
 	if err != nil {
 		return fmt.Errorf("error during exchange: %s", err.Error())

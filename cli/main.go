@@ -23,7 +23,10 @@ func init() {
 
 func printFatal(err string) {
 	boldRed := color.New(color.FgRed, color.Bold)
-	boldRed.Println(err)
+	_, printErr := boldRed.Println(err)
+	if printErr != nil {
+		log.Fatal(err)
+	}
 	os.Exit(1)
 }
 
