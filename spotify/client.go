@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 
 	"golang.org/x/oauth2"
@@ -75,7 +76,12 @@ func (c *Client) Call(method, endpoint string, body, respStruct any, queryParams
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			log.Printf("Error closing response body from call to %s %s: %s", method, endpoint, closeErr.Error())
+		}
+	}()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
