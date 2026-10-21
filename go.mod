@@ -1,6 +1,6 @@
 module github.com/person1507/spotify-cli
 
-go 1.27.0
+go 1.27.3
 
 require (
 	github.com/fatih/color v1.19.0
