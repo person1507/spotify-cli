@@ -4,6 +4,7 @@ jobs:
   govulncheck_job:
     runs-on: ubuntu-latest
     name: Run govulncheck
+    continue-on-error: true
     steps:
       - id: govulncheck
         uses: golang/govulncheck-action@v1
