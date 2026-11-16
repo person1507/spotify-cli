@@ -18,7 +18,14 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(loginCmd, userInfoCmd, topItemsCmd, followedArtistsCmd)
+	rootCmd.AddCommand(
+		loginCmd, 
+		userInfoCmd, 
+		topItemsCmd, 
+		followedArtistsCmd,
+
+		searchCmd,
+	)
 }
 
 func printFatal(err string) {
