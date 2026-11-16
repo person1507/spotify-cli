@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"os"
 
 	"golang.org/x/oauth2"
 )
@@ -71,6 +73,31 @@ func (c *Client) Call(method, endpoint string, body, respStruct any, queryParams
 		q.Add(k, v)
 	}
 	req.URL.RawQuery = q.Encode()
+	
+	var reqBody []byte
+	if body != nil {
+		reqBody, err = io.ReadAll(req.Body)
+		if err != nil {
+			return err
+		}
+		req.Body = io.NopCloser(bytes.NewBuffer(reqBody))
+	}
+
+	if os.Getenv("DEBUG") == "1" {
+		b, err := httputil.DumpRequestOut(req, false)
+		if err != nil {
+			return fmt.Errorf("%s", "error dumping request: "+err.Error())
+		}
+		fmt.Println(string(b))
+
+		if body != nil {
+			debugReqBody := io.NopCloser(bytes.NewBuffer(reqBody))
+			err = prettyPrintJSON(debugReqBody)
+			if err != nil {
+				return fmt.Errorf("%s", "error pretty printing request body: "+err.Error())
+			}
+		}
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -88,10 +115,36 @@ func (c *Client) Call(method, endpoint string, body, respStruct any, queryParams
 		return err
 	}
 
+	if os.Getenv("DEBUG") == "1" {
+		b, err := httputil.DumpResponse(resp, false)
+		if err != nil {
+			return fmt.Errorf("%s", "error dumping response: "+err.Error())
+		}
+		fmt.Println(string(b))
+
+		debugRespBody := io.NopCloser(bytes.NewBuffer(respBody))
+		err = prettyPrintJSON(debugRespBody)
+		if err != nil {
+			return fmt.Errorf("%s", "error pretty printing response body: "+err.Error())
+		}
+	}
+
 	err = json.Unmarshal(respBody, respStruct)
 	if err != nil {
 		return fmt.Errorf("%s", "error unmarshaling response: "+err.Error())
 	}
 
+	return nil
+}
+
+func prettyPrintJSON(body io.ReadCloser) error {
+	b, _ := io.ReadAll(body)
+	var prettyJSON bytes.Buffer
+	err := json.Indent(&prettyJSON, b, "", "    ")
+	if err != nil {
+		return fmt.Errorf("%s", "error indenting body: "+err.Error())
+	}
+
+	fmt.Println(prettyJSON.String())
 	return nil
 }
